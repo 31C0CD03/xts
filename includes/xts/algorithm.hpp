@@ -3,8 +3,10 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #if defined( __ARM_NEON ) || defined( __ARM_NEON__ )
@@ -19,32 +21,32 @@ namespace xts
 
 	class pattern
 	{
-	   public:
-		std::vector<std::uint8_t> m_pattern;
-		std::vector<std::uint8_t> m_mask;
-
-	   public:
-		pattern( std::vector<std::uint8_t> pattern, std::vector<std::uint8_t> mask ) : m_pattern( std::move( pattern ) ), m_mask( std::move( mask ) )
-		{
-			if ( m_mask.size() != m_pattern.size() )
+		public:
+			pattern( std::vector<std::uint8_t> pattern, std::vector<std::uint8_t> mask ) : m_pattern( std::move( pattern ) ), m_mask( std::move( mask ) )
 			{
-				throw std::invalid_argument{ "mask.size() must be equal to pattern.size()" };
-			}
-		}
-
-		std::ptrdiff_t find( const std::uint8_t* data, const std::size_t data_len )
-		{
-			if ( data == nullptr )
-			{
-				throw std::invalid_argument{ "data must not be null" };
-			}
-			else if ( data_len < m_pattern.size() )
-			{
-				throw std::invalid_argument{ "data must not be shorter than pattern" };
+				if ( m_mask.size() != m_pattern.size() )
+				{
+					throw std::invalid_argument{ "mask.size() must be equal to pattern.size()" };
+				}
 			}
 
-			return scan_impl( data, data_len, m_pattern.data(), m_pattern.size(), m_mask.data() );
-		}
+			std::ptrdiff_t find( const std::uint8_t* data, const std::size_t data_len )
+			{
+				if ( data == nullptr )
+				{
+					throw std::invalid_argument{ "data must not be null" };
+				}
+				else if ( data_len < m_pattern.size() )
+				{
+					throw std::invalid_argument{ "data must not be shorter than pattern" };
+				}
+
+				return scan_impl( data, data_len, m_pattern.data(), m_pattern.size(), m_mask.data() );
+			}
+
+		private:
+			std::vector<std::uint8_t> m_pattern;
+			std::vector<std::uint8_t> m_mask;
 	};
 
 	static std::ptrdiff_t scan_impl( const std::uint8_t* data, const std::size_t data_len, const std::uint8_t* pattern, const std::size_t pattern_len, const std::uint8_t* mask )
@@ -65,7 +67,7 @@ namespace xts
 
 #if defined( __AVX512F__ ) || defined( __AVX2__ )
 		const bool pattern_aligned = ( reinterpret_cast<std::uintptr_t>( pattern ) & ( chunk_size - 1 ) ) == 0;
-		const bool mask_aligned    = ( reinterpret_cast<std::uintptr_t>( mask ) & ( chunk_size - 1 ) ) == 0;
+		const bool mask_aligned	   = ( reinterpret_cast<std::uintptr_t>( mask ) & ( chunk_size - 1 ) ) == 0;
 #endif
 
 		// Valid slices are (0 .. (pattern_len - 1)) through ((data_len - pattern_len) .. (data_len - 1))
@@ -82,23 +84,23 @@ namespace xts
 			for ( ; chunk_size && j < ( pattern_len & ~( chunk_size - 1 ) ); j += chunk_size )
 			{
 #if defined( __ARM_NEON ) || defined( __ARM_NEON__ )
-				const uint8x16_t data_vec    = vld1q_u8( &data[ i + j ] );
+				const uint8x16_t data_vec	 = vld1q_u8( &data[ i + j ] );
 				const uint8x16_t pattern_vec = vld1q_u8( &pattern[ j ] );
-				const uint8x16_t mask_vec    = vld1q_u8( &mask[ j ] );
+				const uint8x16_t mask_vec	 = vld1q_u8( &mask[ j ] );
 
 				uint64x2_t diff_vec = vreinterpretq_u64_u8( vandq_u8( veorq_u8( data_vec, pattern_vec ), mask_vec ) );
 				match &= ( vgetq_lane_u64( diff_vec, 0 ) | vgetq_lane_u64( diff_vec, 1 ) ) == 0;
 #elif defined( __AVX512F__ )
-				__m512i data_vec    = _mm512_loadu_si512( reinterpret_cast<const __m512i*>( &data[ i + j ] ) );
+				__m512i data_vec	= _mm512_loadu_si512( reinterpret_cast<const __m512i*>( &data[ i + j ] ) );
 				__m512i pattern_vec = pattern_aligned ? _mm512_load_si512( reinterpret_cast<const __m512i*>( &pattern[ j ] ) ) : _mm512_loadu_si512( reinterpret_cast<const __m512i*>( &pattern[ j ] ) );
-				__m512i mask_vec    = mask_aligned ? _mm512_load_si512( reinterpret_cast<const __m512i*>( &mask[ j ] ) ) : _mm512_loadu_si512( reinterpret_cast<const __m512i*>( &mask[ j ] ) );
+				__m512i mask_vec	= mask_aligned ? _mm512_load_si512( reinterpret_cast<const __m512i*>( &mask[ j ] ) ) : _mm512_loadu_si512( reinterpret_cast<const __m512i*>( &mask[ j ] ) );
 
 				const __m512i diff_vec = _mm512_and_si512( _mm512_xor_si512( data_vec, pattern_vec ), mask_vec );
 				match &= _mm512_test_epi64_mask( diff_vec, _mm512_setzero_si512() ) == 0;
 #elif defined( __AVX2__ )
-				__m256i data_vec    = _mm256_loadu_si256( reinterpret_cast<const __m256i*>( &data[ i + j ] ) );
+				__m256i data_vec	= _mm256_loadu_si256( reinterpret_cast<const __m256i*>( &data[ i + j ] ) );
 				__m256i pattern_vec = pattern_aligned ? _mm256_load_si256( reinterpret_cast<const __m256i*>( &pattern[ j ] ) ) : _mm256_loadu_si256( reinterpret_cast<const __m256i*>( &pattern[ j ] ) );
-				__m256i mask_vec    = mask_aligned ? _mm256_load_si256( reinterpret_cast<const __m256i*>( &mask[ j ] ) ) : _mm256_loadu_si256( reinterpret_cast<const __m256i*>( &mask[ j ] ) );
+				__m256i mask_vec	= mask_aligned ? _mm256_load_si256( reinterpret_cast<const __m256i*>( &mask[ j ] ) ) : _mm256_loadu_si256( reinterpret_cast<const __m256i*>( &mask[ j ] ) );
 
 				const __m256i diff_vec = _mm256_and_si256( _mm256_xor_si256( data_vec, pattern_vec ), mask_vec );
 				match &= _mm256_testz_si256( diff_vec, diff_vec ) != 0;

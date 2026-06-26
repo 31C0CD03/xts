@@ -2,8 +2,9 @@ BasedOnStyle: Google
 ColumnLimit: '240'
 IndentWidth: '4'
 TabWidth: '4'
-UseTab: ForContinuationAndIndentation
+UseTab: Always
 NamespaceIndentation: All
+IndentAccessModifiers: true
 SpaceAfterTemplateKeyword: 'false'
 SpacesInParentheses: 'true'
 SpacesInSquareBrackets: 'true'

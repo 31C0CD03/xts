@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 
 #include <xts/algorithm.hpp>
@@ -36,11 +37,11 @@ namespace xts
 
 		struct test_case
 		{
-			const char* m_name;
-			std::vector<std::uint8_t> m_data;
-			std::vector<std::uint8_t> m_pattern;
-			std::vector<std::uint8_t> m_mask;
-			std::ptrdiff_t m_expected;
+				const char* m_name;
+				std::vector<std::uint8_t> m_data;
+				std::vector<std::uint8_t> m_pattern;
+				std::vector<std::uint8_t> m_mask;
+				std::ptrdiff_t m_expected;
 		};
 	}
 }
@@ -69,7 +70,7 @@ int main()
 	int failed = 0;
 	for ( const auto& t : tests )
 	{
-		auto p             = xts::pattern{ t.m_pattern, t.m_mask };
+		auto p			   = xts::pattern{ t.m_pattern, t.m_mask };
 		std::ptrdiff_t res = p.find( t.m_data.data(), t.m_data.size() );
 
 		std::ptrdiff_t expected = t.m_expected;
